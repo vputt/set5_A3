@@ -1,6 +1,7 @@
 #include "ExactDistinct.h"
 #include "HashFuncGen.h"
 #include "HyperLogLog.h"
+#include "HyperLogLogImproved.h"
 #include "RandomStreamGen.h"
 #include <cmath>
 #include <fstream>
@@ -35,16 +36,20 @@ int main() {
 
   HashFuncGen h;
 
-  std::vector<double> ratios;
-  for (int p = 5; p <= 100; p += 5) {
-    ratios.push_back(p / 100.0);
-  }
+std::vector<double> ratios = {0.01, 0.02, 0.03, 0.04, 0.05};
+for (int p = 10; p <= 100; p += 5) ratios.push_back(p / 100.0);
+
 
   std::ofstream out1("results_streams.csv");
   out1 << "stream_id,ratio,t,F0,Nt\n";
 
   std::map<double, std::vector<double>> estimatesByRatio;
   std::map<double, std::vector<double>> exactByRatio;
+
+  std::ofstream out_imp_1("results_streams_improved.csv");
+  out_imp_1 << "stream_id,ratio,t,F0,Nt\n";
+
+  std::map<double, std::vector<double>> estimatesByRatioImp;
 
   for (size_t sId = 0; sId < numStreams; ++sId) {
     std::cout << "Stream " << sId << "...\n";
@@ -58,6 +63,7 @@ int main() {
       std::vector<std::string> prefix(full.begin(), full.begin() + k);
 
       size_t F0 = exactDistinctCount(prefix);
+      exactByRatio[r].push_back(static_cast<double>(F0));
 
       HyperLogLog hll(B);
       for (const auto &str : prefix) {
@@ -66,9 +72,16 @@ int main() {
       double Nt = hll.estimate();
 
       out1 << sId << "," << r << "," << k << "," << F0 << "," << Nt << "\n";
-
       estimatesByRatio[r].push_back(Nt);
-      exactByRatio[r].push_back(static_cast<double>(F0));
+
+      HyperLogLogImproved hll_imp(B);
+      for (const auto &str : prefix) {
+        hll_imp.add(str, h);
+      }
+      double Nt_imp = hll_imp.estimate();
+
+      out_imp_1 << sId << "," << r << "," << k << "," << F0 << "," << Nt_imp << "\n";
+      estimatesByRatioImp[r].push_back(Nt_imp);
     }
   }
 
@@ -86,6 +99,21 @@ int main() {
     out2 << r << "," << ms.mean << "," << ms.std << "," << meanF0 << "\n";
   }
 
-  std::cout << "Done. CSV: results_streams.csv, stats_by_ratio.csv\n";
+  std::ofstream out_imp_2("stats_by_ratio_improved.csv");
+  out_imp_2 << "ratio,mean_Nt,std_Nt,mean_F0\n";
+
+  for (auto &[r, valsImp] : estimatesByRatioImp) {
+    auto msImp = computeMeanStd(valsImp);
+    double meanF0 = 0.0;
+    const auto &vF0 = exactByRatio[r];
+    for (double x : vF0)
+      meanF0 += x;
+    meanF0 /= vF0.size();
+    out_imp_2 << r << "," << msImp.mean << "," << msImp.std << "," << meanF0 << "\n";
+  }
+
+  std::cout << "Done.\n";
+  std::cout << "STD CSV: results_streams.csv, stats_by_ratio.csv\n";
+  std::cout << "IMP CSV: results_streams_improved.csv, stats_by_ratio_improved.csv\n";
   return 0;
 }

@@ -20,16 +20,16 @@ void HyperLogLog::reset() {
 }
 
 // Подсчёт количества ведущих нулей в старших maxBits битах числа x
-static uint8_t leadingZeros(uint32_t x, uint8_t maxBits) {
-    if (maxBits == 0) return 0;
-    if (x == 0) return maxBits;
+uint8_t HyperLogLog::leadingZeros(uint32_t x, uint8_t maxBits) {
+  if (maxBits == 0) return 0;
+  if (x == 0) return maxBits;
 
-    uint8_t cnt = 0;
-    while (cnt < maxBits && (x & 0x80000000u) == 0) {
-        ++cnt;
-        x <<= 1;
-    }
-    return cnt;
+  uint8_t cnt = 0;
+  while (cnt < maxBits && (x & 0x80000000u) == 0) {
+    ++cnt;
+    x <<= 1;
+  }
+  return cnt;
 }
 
 void HyperLogLog::add(uint32_t x) {
